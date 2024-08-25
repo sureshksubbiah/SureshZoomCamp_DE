@@ -8,7 +8,6 @@ terraform {
 }
 
 provider "google" {
-    credentials = "/workspaces/SureshZoomCamp_DE/keys/dtc-de-26051982-281396bb8c58.json"
   project = "dtc-de-26051982"
   region  = "us-central1"
 }

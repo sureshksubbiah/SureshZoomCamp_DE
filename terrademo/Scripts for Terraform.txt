@@ -1,0 +1,46 @@
+Create below script in main.tf file
+
+#Terraform required providers is needed to make a connection pipeline to cloud provider, in this case its google
+
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "5.42.0"
+    }
+  }
+}
+
+#provider configurations like credentials, project and region can be set here
+#credentials can be skipped here and can be sourced via .bashrc having below definition
+#export GOOGLE_APPLICATION_CREDENTIALS=/workspaces/SureshZoomCamp_DE/keys/dtc-de-26051982-281396bb8c58.json
+# and the command "source .bashrc", if the export is written for the first time and the terminal is not restarted
+
+provider "google" {
+  credentials = "/workspaces/SureshZoomCamp_DE/keys/dtc-de-26051982-281396bb8c58.json"
+  project = "dtc-de-26051982"
+  region  = "us-central1"
+}
+
+
+# name of the bucket in the GCP need to be set against name variable. it needs to be unique at GCP all user account level
+# hence using the project id as the prefix. the "terra_demo_bukcet"is the name to identify the bucket in terrform
+# force_destroy = true allows us to destro it by force commands
+#Lifecycle condition of age = 1 means max age = 1 day
+#AbortIncompleteMultipartUpload means multiple part upload of an incomplete file. iof such file are found it will be 
+#destroyed automatically
+
+resource "google_storage_bucket" "terra_demo_bucket" {
+  name          = "dtc-de-26051982-terra-bucket"
+  location      = "US"
+  force_destroy = true
+
+  lifecycle_rule {
+    condition {
+      age = 1
+    }
+    action {
+      type = "AbortIncompleteMultipartUpload"
+    }
+  }
+}
