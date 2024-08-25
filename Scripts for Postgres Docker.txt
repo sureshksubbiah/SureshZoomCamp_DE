@@ -1,0 +1,300 @@
+To identify images which are not being used
+
+docker images -q -f dangling=true
+
+To delete those unused images
+
+docker rmi $(docker images -q -f dangling=true)
+
+To delete a container
+docker rm <container id>
+
+To list all containers including stopped ones 
+docker ps -a
+
+To lit the images
+docker image ls
+
+To list the containers
+docker container ls
+
+To list the network
+docker network ls
+
+
+
+To build the docker image from Dockerfile in the same directory:
+"dot" at the end denotes that the image needs to be built from the current directory
+
+docker build -t test:pandas .
+Once docker is built, we can directly run the image unless we want to make some changes to the image
+
+To run the built image:
+docker run -it test:pandas 2024-08-20
+
+To run postgres image and build ny_taxi database:
+docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="root" \
+    -e POSTGRES_DB="ny_taxi" \
+    -e POSTGRES_HOST_AUTH_METHOD=trust \
+    -v $(pwd)/ny_taxi_postgres_data:/var/lib/postgresql/data \
+    -p 5432:5432 \
+    -d postgres:13
+
+to chekc if any container is using a port:
+docker ps
+
+if a container need to be stopped:
+docker stop faf3a9ba23a2
+
+once the postgres image is run, we can connect to it using pgcli command
+pgcli -h localhost -p 5432 -u root -d ny_taxi
+
+Now, we have created the postgres database and be able to connect to database via pgcli, we can explore
+other better options top access the DB via a GUI
+
+pgadmin is a web based GUI which we can use to access the postgres database. We can use the pgadmin docker image and 
+try to connect to postgres docker image. but it would not be able to access pgadmin will look for the postgres databases 
+within the pgadmin docker localhost. to resolve this, we can create a docker network and run these two docker images
+within that. here is the code for that
+
+To create docker network:
+docker network create pg-network
+
+To run postgres database, note that there are two additional parameters called name and netwrok.
+This will help pg admin to locate the postgres in docker network
+
+docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="root" \
+    -e POSTGRES_DB="ny_taxi" \
+    -v $(pwd)/ny_taxi_postgres_data:/var/lib/postgresql/data \
+    -p 5432:5432 \
+    --network=pg-network \
+    --name postgres13 \
+    -d postgres:13
+
+To run the pgadmin we can use below commands, (dpage/pgadmin4 is the image name)
+
+docker run -it \
+    -e PGADMIN_DEFAULT_EMAIL="admin@admin.com" \
+    -e PGADMIN_DEFAULT_PASSWORD="root" \
+    -p 8080:80 \
+    --network=pg-network \
+    --name pgadmin2 \
+    dpage/pgadmin4
+
+If you are facing issues like unable to resolve hostname, 
+make sure that the postgres db is running by trying to connect via pgcli, if yes, then exit pgcli
+and then try restarting the codespace and redo the whole process once again
+
+Creating Ingest script with docker
+
+Testing the script with local python:
+run the postgres db image:
+for some reason wvery time when i run the postgres db, it errors out saying the name is taken up already.
+so changing the name everytime, this time it is set to postgres13.1
+
+docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="root" \
+    -e POSTGRES_DB="ny_taxi" \
+    -v $(pwd)/ny_taxi_postgres_data:/var/lib/postgresql/data \
+    -p 5432:5432 \
+    --network=pg-network \
+    --name postgres13.1 \
+    -d postgres:13
+
+now we can run the ingest script from local(codespace) python:
+python Ingest_Data.py \
+    --user=root \
+    --password=root \
+    --host=localhost \
+    --port=5432 \
+    --db=ny_taxi \
+    --table_name=yellow_taxi_trips \
+    --url="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2021-01.parquet"
+
+to create the docker update below commands in Docker file
+
+FROM python:3.9.1
+# We need to install curl to download the file from url
+RUN apt-get install curl
+
+# psycopg2 is a postgres db adapter for python: sqlalchemy needs it
+
+RUN pip install pandas sqlalchemy psycopg2 pyarrow
+
+WORKDIR /app
+
+COPY Ingest_Data.py Ingest_Data.py
+
+ENTRYPOINT ["python","Ingest_Data.py"]
+
+and then run below command to build the image
+docker build -t taxi_ingest:v001 .
+
+since the postgres db is already up and running, we can run below command to run the image
+postgres13.1 is the host name we have set in the last postgres image run
+
+docker run -it \
+    --network=pg-network \
+    taxi_ingest:v001 \
+    --user=root \
+    --password=root \
+    --host=postgres13.1 \
+    --port=5432 \
+    --db=ny_taxi \
+    --table_name=yellow_taxi_trips \
+    --url="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2021-01.parquet"
+
+
+We can simplify the process of running postgres db and pgadmin using docker-compose.yaml
+
+create a docker-compose.yaml file with below commands, this will create the postgres as well as pgadmin docker 
+images within the same docker network, so that they are accessible and reachable to one another.
+
+services:
+  postgres13.1:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=ny_taxi
+    volumes:
+      - "./ny_taxi_postgres_data:/var/lib/postgresql/data:rw"
+    ports:
+      - "5432:5432"
+  pgadmin2:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=root
+    volumes:
+      - "./data_pgadmin:/var/lib/pgadmin"
+    ports:
+      - "8080:80"
+
+To start the images use below command
+docker-compose up
+
+this should start the images and once they are up, we should be able to login to postgre pgadmin and 
+access the tables from the postgres db
+
+to stop the containers, we can use below command
+docker-compose down
+
+to start docker compose in detatched mode, meaning the terminal dont get used to display the logs in the screen
+we can use below commands
+docker-compose up -d
+
+to run the ingest script again against the docker images in the docker-compose, by default docker-compose
+generates the network name using the format <directoryname>_default 
+
+docker run -it \
+    --network=2_docker_default \
+    taxi_ingest:v001 \
+    --user=root \
+    --password=root \
+    --host=postgres13.1 \
+    --port=5432 \
+    --db=ny_taxi \
+    --table_name=yellow_taxi_trips \
+    --url="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2021-01.parquet"
+
+if we want to customize the network name, we can do so in the docker-compose.yaml like below
+and the name of the netwrok will look like "2_docker_my-docker-compose-network" when we run below cmmand
+
+docker network ls
+
+services:
+
+  postgres13.1:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=ny_taxi
+    volumes:
+      - "./ny_taxi_postgres_data:/var/lib/postgresql/data:rw"
+    ports:
+      - "5432:5432"
+    networks:
+      - my-docker-compose-network
+  pgadmin2:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=root
+    volumes:
+      - "./data_pgadmin:/var/lib/pgadmin"
+    ports:
+      - "8080:80"
+    networks:
+      - my-docker-compose-network
+networks:
+  my-docker-compose-network:
+    driver: bridge
+
+
+To load a csv file from below url, i am going to make few changes in the ingest file
+https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv
+
+Created a new .py file callled Ingest_Data_csv.py
+removed the pyarrow package
+using read_csv instead of read_parquet
+loading the 
+
+python Ingest_Data_csv.py \
+    --user=root \
+    --password=root \
+    --host=localhost \
+    --port=5432 \
+    --db=ny_taxi \
+    --table_name=zone \
+    --url="https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+
+No going to dockerize the code by replacing below content
+
+FROM python:3.9.1
+# We need to install curl to download the file from url
+RUN apt-get install curl
+# psycopg2 is a postgres db adapter for python: sqlalchemy needs it
+RUN pip install pandas sqlalchemy psycopg2 pyarrow
+
+WORKDIR /app
+
+COPY Ingest_Data.py Ingest_Data.py
+
+ENTRYPOINT ["python","Ingest_Data.py"]
+
+with this
+
+FROM python:3.9.1
+# We need to install curl to download the file from url
+RUN apt-get install curl
+# psycopg2 is a postgres db adapter for python: sqlalchemy needs it
+RUN pip install pandas sqlalchemy psycopg2
+
+WORKDIR /app
+
+COPY Ingest_Data_csv.py Ingest_Data_csv.py
+
+ENTRYPOINT ["python","Ingest_Data_csv.py"]
+
+build script:
+docker build -t taxi_zone_ingest:v001 .
+
+docker run:
+
+docker run -it \
+    --network=2_docker_default \
+    taxi_zone_ingest:v001 \
+    --user=root \
+    --password=root \
+    --host=postgres13.1 \
+    --port=5432 \
+    --db=ny_taxi \
+    --table_name=zone \
+    --url="https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
