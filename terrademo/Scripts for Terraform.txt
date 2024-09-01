@@ -1,3 +1,13 @@
+Terraform commands:
+
+terraform init : initialize your work directory by downloading the necessary providers/plugins.
+terraform fmt (optional): formats your configuration files so that the format is consistent.
+terraform validate (optional): returns a success message if the configuration is valid and no errors are apparent.
+terraform plan : creates a preview of the changes to be applied against a remote state, allowing you to review the changes before applying them.
+terraform apply : applies the changes to the infrastructure.
+terraform destroy : removes your stack from the infrastructure.
+
+
 Create below script in main.tf file
 
 #Terraform required providers is needed to make a connection pipeline to cloud provider, in this case its google
@@ -15,9 +25,28 @@ terraform {
 #credentials can be skipped here and can be sourced via .bashrc having below definition
 #export GOOGLE_APPLICATION_CREDENTIALS=/workspaces/SureshZoomCamp_DE/keys/dtc-de-26051982-281396bb8c58.json
 # and the command "source .bashrc", if the export is written for the first time and the terminal is not restarted
+# Credentials can also be created asa variable like below and called here with file(var.credentials)
+# but for some reason its not working with both hardcoded string as well as variable. works only when credentials are skipped
+# and set by the commands below or .bashrc
+# export GOOGLE_APPLICATION_CREDENTIALS="<path/to/authkeys>.json"
+# gcloud auth application-default login
 
+
+variable "credentials" {
+  description = "Credentials"
+  default     = "./keys/dtc-de-26051982-281396bb8c58.json"
+}
+
+#hardcoded path
 provider "google" {
   credentials = "/workspaces/SureshZoomCamp_DE/keys/dtc-de-26051982-281396bb8c58.json"
+  project = "dtc-de-26051982"
+  region  = "us-central1"
+}
+
+#variable based credentials
+provider "google" {
+  credentials = file(var.credentials)
   project = "dtc-de-26051982"
   region  = "us-central1"
 }
@@ -25,7 +54,7 @@ provider "google" {
 
 # name of the bucket in the GCP need to be set against name variable. it needs to be unique at GCP all user account level
 # hence using the project id as the prefix. the "terra_demo_bukcet"is the name to identify the bucket in terrform
-# force_destroy = true allows us to destro it by force commands
+# force_destroy = true allows us to destroy it by force commands
 #Lifecycle condition of age = 1 means max age = 1 day
 #AbortIncompleteMultipartUpload means multiple part upload of an incomplete file. iof such file are found it will be 
 #destroyed automatically
@@ -44,3 +73,36 @@ resource "google_storage_bucket" "terra_demo_bucket" {
     }
   }
 }
+
+we can unset the GOOGLE_APPLICATION_CREDNTIALS to stop using the josn key for terraform, command to use
+unset GOOGLE_APPLICATION_CREDNTIALS
+
+.bashrc file content
+export GOOGLE_APPLICATION_CREDENTIALS=/workspaces/SureshZoomCamp_DE/keys/dtc-de-26051982-281396bb8c58.json
+
+To unset
+unset GOOGLE_APPLICATION_CREDENTIALS=/workspaces/SureshZoomCamp_DE/keys/dtc-de-26051982-281396bb8c58.json
+
+To list files in google storage bucket
+gsutil ls gs://dtc-de-26051982-terra-bucket/
+
+to move a file from local to google cloud storage
+gsutil cp titanic_clean.csv gs://dtc-de-26051982-terra-bucket
+
+
+to deploy mage in to gcp:
+git clone https://github.com/mage-ai/mage-ai-terraform-templates.git
+
+cd mage-ai-terraform-templates
+
+change the project id in the variabes.tf
+then run below coimmand if the google cloud login is not done,
+
+set the necessary access roles in the google cloud console service iam account
+
+gcloud auth application-default login
+
+terraform init
+terraform plan
+terraform apply
+

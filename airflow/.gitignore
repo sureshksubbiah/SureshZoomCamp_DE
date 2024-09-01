@@ -1,0 +1,7 @@
+/google/
+/dags/
+/logs/
+/plugins/
+*.env
+/scripts/
+/mage-ai-terraform-templates/

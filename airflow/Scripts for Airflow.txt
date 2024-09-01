@@ -1,0 +1,33 @@
+On Linux, the quick-start needs to know your host user-id and needs to have group id set to 0.
+Otherwise the files created in dags, logs and plugins will be created with root user. 
+You have to make sure to configure them for the docker-compose:
+
+mkdir -p ./dags ./logs ./plugins
+echo -e "AIRFLOW_UID=$(id -u)" > .env
+
+Import the official docker setup file from the latest Airflow version:
+
+curl -LfO 'https://airflow.apache.org/docs/apache-airflow/stable/docker-compose.yaml'
+
+copied the dockerfile , docker-compose.yaml, requirements.txt and scripts folder files from below github link
+
+https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/cohorts/2022/week_2_data_ingestion/airflow/1_setup_official.md
+
+
+then run below command to build the image
+docker-compose build
+
+then run below command to initialize airflow
+docker-compose up airflow-init
+
+then run below command to initiate the backend services like scheduler, worker etc
+docker-compose up
+
+we can check the list of services that are up by using below command
+docker-compose ps
+
+once the webserver is ready , we can login the web gui and check
+credentials can be obtained from line 244 and 245 of docker-compose.yaml
+
+To clean up space occupied by docker builder cache
+docker builder prune -a -f

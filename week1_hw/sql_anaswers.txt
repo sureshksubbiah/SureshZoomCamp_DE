@@ -1,0 +1,32 @@
+select * from public.green_taxi_data limit 10 
+
+SELECT * FROM public.taxi_zone_lookup
+
+
+SELECT date(lpep_pickup_datetime), max(trip_distance) FROM public.green_taxi_data 
+group by 1 order by 2 desc
+
+select b."Borough",sum(total_amount) as tots 
+from public.green_taxi_data as a join public.taxi_zone_lookup as b
+on a."PULocationID" = b."LocationID"
+where date(lpep_pickup_datetime) = '2019-09-18'
+and (b."Borough" is not null or b."Borough"!= '')
+group by 1 having sum(total_amount) > 50000
+order by 2 desc
+
+
+select c."Zone",
+--date_part('year',a.lpep_pickup_datetime)::varchar || date_part('month',a.lpep_pickup_datetime)::varchar,
+max(tip_amount) as tots 
+from public.green_taxi_data as a 
+join public.taxi_zone_lookup as b
+on a."PULocationID" = b."LocationID"
+join public.taxi_zone_lookup as c
+on a."DOLocationID" = c."LocationID"
+
+where 
+date_part('year',a.lpep_pickup_datetime)::varchar || date_part('month',a.lpep_pickup_datetime)::varchar = '20199' and 
+b."Zone" = 'Astoria'
+group by 1
+order by 2 desc
+
